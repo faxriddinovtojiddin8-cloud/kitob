@@ -1,0 +1,638 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audiokitob — Smart Reader</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #080d1b;
+    color: white;
+    min-height: 100vh;
+    padding: 25px;
+}
+
+.background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(circle at 15% 20%, #173b68 0, transparent 35%),
+        radial-gradient(circle at 85% 80%, #41215e 0, transparent 35%),
+        #080d1b;
+}
+
+.container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: clamp(28px, 5vw, 45px);
+    background: linear-gradient(90deg, #64e8ff, #a78bfa);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+header p {
+    color: #aab6d3;
+    margin-top: 10px;
+}
+
+.card {
+    background: rgba(18, 27, 49, 0.88);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 15px 45px #0003;
+}
+
+.upload-area {
+    border: 2px dashed #536b99;
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: .3s;
+}
+
+.upload-area:hover {
+    border-color: #64e8ff;
+    background: #142744;
+}
+
+.upload-area .icon {
+    font-size: 45px;
+    margin-bottom: 12px;
+}
+
+input[type=file] {
+    display: none;
+}
+
+.book-name {
+    color: #64e8ff;
+    margin-top: 12px;
+    overflow-wrap: anywhere;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+label {
+    display: block;
+    color: #aab6d3;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+select, input[type=range], input[type=number] {
+    width: 100%;
+}
+
+select, input[type=number] {
+    padding: 12px;
+    background: #0b1427;
+    border: 1px solid #354765;
+    border-radius: 10px;
+    color: white;
+}
+
+.voice-hint {
+    display: block;
+    color: #aab6d3;
+    margin-top: 7px;
+    line-height: 1.5;
+}
+
+input[type=range] {
+    accent-color: #64e8ff;
+}
+
+.buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+button {
+    border: none;
+    padding: 12px 18px;
+    border-radius: 11px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: .2s;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.primary {
+    background: linear-gradient(135deg, #24c6dc, #647bff);
+    color: #07111f;
+}
+
+.secondary {
+    background: #263754;
+    color: white;
+}
+
+.stop {
+    background: #632e43;
+    color: white;
+}
+
+.status {
+    margin-top: 18px;
+    color: #64e8ff;
+    min-height: 24px;
+}
+
+.progress-box {
+    margin-top: 18px;
+}
+
+.progress {
+    height: 8px;
+    background: #26334b;
+    border-radius: 20px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #24c6dc, #a78bfa);
+    transition: width .2s;
+}
+
+.reader {
+    background: #0b1427;
+    border: 1px solid #263754;
+    border-radius: 14px;
+    padding: 22px;
+    min-height: 250px;
+    max-height: 500px;
+    overflow-y: auto;
+    line-height: 1.9;
+    font-size: 17px;
+    white-space: pre-wrap;
+    color: #dce6fa;
+}
+
+.reader mark {
+    background: #215d78;
+    color: #fff;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.reader:empty::before {
+    content: "Kitob yuklangandan keyin matn shu yerda ko‘rinadi...";
+    color: #71819f;
+}
+
+.page-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+
+.page-info {
+    color: #aab6d3;
+}
+
+footer {
+    text-align: center;
+    color: #64718c;
+    padding: 20px;
+}
+
+@media(max-width:600px) {
+    body { padding: 12px; }
+    .card { padding: 17px; }
+    .buttons button { flex: 1; }
+    .reader { font-size: 15px; }
+}
+</style>
+</head>
+
+<body>
+<div class="background"></div>
+
+<div class="container">
+
+<header>
+    <h1>📚 Smart Audiobook</h1>
+    <p>Yukla. Tingla. O‘qi.</p>
+</header>
+
+<div class="card">
+    <label>Kitob faylini yuklang</label>
+
+    <label class="upload-area" for="bookFile">
+        <div class="icon">📖</div>
+        <h3>Kitobni tanlash</h3>
+        <p style="color:#aab6d3;margin-top:8px">
+            PDF, TXT yoki DOCX faylini shu yerdan yuklang
+        </p>
+        <div class="book-name" id="bookName">Fayl tanlanmagan</div>
+    </label>
+
+    <input type="file" id="bookFile"
+           accept=".pdf,.txt,.docx">
+
+    <div class="controls">
+        <div>
+            <label>Ovoz turi</label>
+            <select id="voiceSelect">
+                <option value="auto">Avtomatik (o‘zbekcha)</option>
+            </select>
+            <small class="voice-hint" id="voiceHint" aria-live="polite"></small>
+        </div>
+
+        <div>
+            <label>O‘qish tezligi: <span id="rateValue">1.0x</span></label>
+            <input type="range" id="rate" min="0.5"
+                   max="2" step="0.1" value="1">
+        </div>
+
+        <div>
+            <label>Ovoz balandligi</label>
+            <input type="range" id="volume" min="0"
+                   max="1" step="0.1" value="1">
+        </div>
+    </div>
+
+    <div class="buttons">
+        <button class="primary" id="playBtn">▶ O‘qishni boshlash</button>
+        <button class="secondary" id="pauseBtn">⏸ Pauza</button>
+        <button class="secondary" id="resumeBtn">▶ Davom ettirish</button>
+        <button class="stop" id="stopBtn">⏹ To‘xtatish</button>
+    </div>
+
+    <div class="status" id="status">Kitob yuklashga tayyor.</div>
+
+    <div class="progress-box">
+        <label>O‘qish jarayoni</label>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="margin-bottom:18px">📄 Kitob matni</h2>
+
+    <div class="reader" id="reader"></div>
+
+    <div class="page-controls">
+        <button class="secondary" id="prevBtn">⬅ Oldingi</button>
+        <span class="page-info" id="pageInfo">Sahifa: 0 / 0</span>
+        <button class="secondary" id="nextBtn">Keyingi ➡</button>
+    </div>
+</div>
+
+<footer>Smart Audiobook Reader · HTML + CSS + JavaScript</footer>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const fileInput = document.getElementById("bookFile");
+const reader = document.getElementById("reader");
+const status = document.getElementById("status");
+const voiceSelect = document.getElementById("voiceSelect");
+const rateInput = document.getElementById("rate");
+const volumeInput = document.getElementById("volume");
+const progressBar = document.getElementById("progressBar");
+const pageInfo = document.getElementById("pageInfo");
+const bookName = document.getElementById("bookName");
+
+let pages = [];
+let currentPage = 0;
+let voices = [];
+let utterance = null;
+let isReading = false;
+let paused = false;
+let session = 0;
+let currentChar = 0;
+
+function setStatus(message) {
+    status.textContent = message;
+}
+
+// Ovozlarni yuklash
+function loadVoices() {
+    const previousVoice = voiceSelect.value;
+    voices = speechSynthesis.getVoices();
+    const voiceHint = document.getElementById("voiceHint");
+    voiceSelect.innerHTML =
+        '<option value="auto">Avtomatik (o‘zbekcha)</option>';
+
+    voices.forEach((voice, index) => {
+        const option = document.createElement("option");
+        option.value = index;
+        option.textContent =
+            `${voice.name} (${voice.lang})`;
+        voiceSelect.appendChild(option);
+    });
+
+    const uzVoice = voices.findIndex(v =>
+        v.lang.toLowerCase().startsWith("uz")
+    );
+    voiceHint.textContent = !voices.length
+        ? "Ovozlar brauzerdan yuklanmoqda..."
+        : uzVoice >= 0
+            ? "O‘zbekcha ovoz mavjud va avtomatik tanlanadi."
+            : "O‘zbekcha ovoz topilmadi. Tabiiy talaffuz uchun qurilmaga o‘zbekcha TTS ovozini o‘rnating.";
+
+    const previousVoiceExists = voices.some((voice, index) =>
+        String(index) === previousVoice
+    );
+    voiceSelect.value = previousVoiceExists
+        ? previousVoice
+        : uzVoice >= 0 ? String(uzVoice) : "auto";
+}
+
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+rateInput.addEventListener("input", () => {
+    document.getElementById("rateValue").textContent =
+        rateInput.value + "x";
+});
+
+// Fayl yuklash
+fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    stopReading();
+    pages = [];
+    currentPage = 0;
+    reader.innerHTML = "";
+    bookName.textContent = file.name;
+    setStatus("Kitob o‘qilmoqda...");
+
+    try {
+        const ext = file.name.split(".").pop().toLowerCase();
+
+        if (ext === "txt") {
+            const text = await file.text();
+            pages = splitText(text);
+        }
+
+        else if (ext === "pdf") {
+            const buffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({
+                data: buffer
+            }).promise;
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+
+                const text = content.items
+                    .map(item => item.str)
+                    .join(" ");
+
+                pages.push(text);
+                setStatus(`PDF yuklanmoqda: ${i}/${pdf.numPages}`);
+            }
+        }
+
+        else if (ext === "docx") {
+            const buffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({
+                arrayBuffer: buffer
+            });
+            pages = splitText(result.value);
+        }
+
+        else {
+            throw new Error("Bu fayl formati qo‘llab-quvvatlanmaydi.");
+        }
+
+        pages = pages.filter(p => p.trim().length > 0);
+
+        if (!pages.length) {
+            throw new Error("Kitob matni topilmadi.");
+        }
+
+        currentPage = 0;
+        showPage();
+        setStatus(`Kitob tayyor! ${pages.length} sahifa yuklandi.`);
+
+    } catch (error) {
+        setStatus("Xatolik: " + error.message);
+    }
+});
+
+// Matnni sahifalarga ajratish
+function splitText(text) {
+    const size = 2500;
+    const result = [];
+
+    for (let i = 0; i < text.length; i += size) {
+        result.push(text.substring(i, i + size));
+    }
+
+    return result;
+}
+
+// Sahifani ko‘rsatish
+function showPage() {
+    if (!pages.length) return;
+
+    reader.textContent = pages[currentPage];
+    pageInfo.textContent =
+        `Sahifa: ${currentPage + 1} / ${pages.length}`;
+
+    progressBar.style.width =
+        ((currentPage + 1) / pages.length * 100) + "%";
+}
+
+document.getElementById("prevBtn").onclick = () => {
+    if (currentPage > 0) {
+        stopReading();
+        currentPage--;
+        showPage();
+    }
+};
+
+document.getElementById("nextBtn").onclick = () => {
+    if (currentPage < pages.length - 1) {
+        stopReading();
+        currentPage++;
+        showPage();
+    }
+};
+
+// Ovoz bilan o‘qish
+function speakPage(pageIndex, startChar = 0, token = session) {
+    if (token !== session || pageIndex >= pages.length) {
+        isReading = false;
+        return;
+    }
+
+    currentPage = pageIndex;
+    showPage();
+
+    const text = pages[pageIndex].slice(startChar);
+
+    if (!text.trim()) {
+        if (pageIndex + 1 < pages.length) {
+            speakPage(pageIndex + 1, 0, token);
+        } else {
+            isReading = false;
+            setStatus("Kitob tugadi! 📚");
+        }
+        return;
+    }
+
+    const chunkSize = 220;
+    const chunkEnd = getSpeechChunkEnd(text, chunkSize);
+    const chunk = text.slice(0, chunkEnd);
+
+    utterance = new SpeechSynthesisUtterance(chunk);
+
+    const voiceIndex = voiceSelect.value;
+    const uzVoice = voices.find(voice =>
+        voice.lang.toLowerCase().startsWith("uz")
+    );
+    const selectedVoice = voiceIndex === "auto"
+        ? uzVoice
+        : voices[Number(voiceIndex)];
+
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        utterance.lang = utterance.voice.lang;
+    } else {
+        utterance.lang = "uz-UZ";
+    }
+
+    utterance.rate = Number(rateInput.value);
+    utterance.volume = Number(volumeInput.value);
+
+    utterance.onstart = () => {
+        if (token === session) {
+            setStatus(`O‘qilmoqda: ${pageIndex + 1}-sahifa`);
+        }
+    };
+
+    utterance.onend = () => {
+        if (token !== session || paused) return;
+
+        const nextChar = startChar + chunk.length;
+
+        if (nextChar < pages[pageIndex].length) {
+            speakPage(pageIndex, nextChar, token);
+        } else if (pageIndex + 1 < pages.length) {
+            speakPage(pageIndex + 1, 0, token);
+        } else {
+            isReading = false;
+            setStatus("Kitob tugadi! 📚");
+            progressBar.style.width = "100%";
+        }
+    };
+
+    utterance.onerror = (event) => {
+        if (token === session && event.error !== "canceled") {
+            setStatus("Ovoz chiqarishda xatolik: " + event.error);
+        }
+    };
+
+    speechSynthesis.speak(utterance);
+}
+
+function getSpeechChunkEnd(text, maxLength) {
+    if (text.length <= maxLength) return text.length;
+
+    const sentenceEnd = Math.max(
+        text.lastIndexOf(". ", maxLength),
+        text.lastIndexOf("! ", maxLength),
+        text.lastIndexOf("? ", maxLength),
+        text.lastIndexOf("\n", maxLength)
+    );
+
+    if (sentenceEnd >= maxLength * 0.55) {
+        return sentenceEnd + 1;
+    }
+
+    const wordEnd = text.lastIndexOf(" ", maxLength);
+    return wordEnd > 0 ? wordEnd : maxLength;
+}
+
+document.getElementById("playBtn").onclick = () => {
+    if (!pages.length) {
+        setStatus("Avval kitob faylini yuklang!");
+        return;
+    }
+
+    stopReading();
+    session++;
+    isReading = true;
+    paused = false;
+    speakPage(currentPage, 0, session);
+};
+
+document.getElementById("pauseBtn").onclick = () => {
+    if (speechSynthesis.speaking && !paused) {
+        speechSynthesis.pause();
+        paused = true;
+        setStatus("O‘qish pauzada.");
+    }
+};
+
+document.getElementById("resumeBtn").onclick = () => {
+    if (paused) {
+        speechSynthesis.resume();
+        paused = false;
+        setStatus("O‘qish davom etmoqda...");
+    }
+};
+
+document.getElementById("stopBtn").onclick = stopReading;
+
+function stopReading() {
+    session++;
+    speechSynthesis.cancel();
+    isReading = false;
+    paused = false;
+    setStatus("O‘qish to‘xtatildi.");
+}
+</script>
+</body>
+</html>
